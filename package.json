@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "uuid": "^9.0.1"
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

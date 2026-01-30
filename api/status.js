@@ -1,5 +1,5 @@
 // Vercel Serverless API - System status
-import { db } from '../lib/db.js';
+import { initDatabase, query } from '../lib/db.js';
 import { Site, Check } from '../lib/models.js';
 
 export default async function handler(req, res) {
@@ -16,17 +16,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    const sites = Site.findAll();
+    await initDatabase();
+
+    const sites = await Site.findAll();
     const activeSites = sites.filter(s => !s.is_paused);
 
     let upCount = 0;
     let downCount = 0;
 
     for (const site of activeSites) {
-      const latest = Check.findLatest(site.id);
+      const latest = await Check.findLatest(site.id);
       if (latest?.status === 'up') upCount++;
       else if (latest?.status === 'down') downCount++;
     }
+
+    const checksCount = await query('SELECT COUNT(*) as count FROM checks');
+    const alertsCount = await query('SELECT COUNT(*) as count FROM alerts');
 
     return res.status(200).json({
       status: 'healthy',
@@ -39,9 +44,9 @@ export default async function handler(req, res) {
         down: downCount
       },
       storage: {
-        sites: db.sites.size,
-        checks: db.checks.size,
-        alerts: db.alerts.size
+        sites: sites.length,
+        checks: parseInt(checksCount.rows[0].count),
+        alerts: parseInt(alertsCount.rows[0].count)
       }
     });
   } catch (error) {

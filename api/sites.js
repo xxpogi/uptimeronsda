@@ -1,11 +1,10 @@
 // Vercel Serverless API - Sites endpoint
-import { db } from '../lib/db.js';
+import { initDatabase } from '../lib/db.js';
 import { Site, Check } from '../lib/models.js';
-import { isUrlSafe, isValidUUID, checkRateLimit } from '../lib/security.js';
-import { validateSite, validateBulkImport } from '../lib/validation.js';
+import { isUrlSafe, checkRateLimit } from '../lib/security.js';
+import { validateSite } from '../lib/validation.js';
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -14,7 +13,6 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Rate limiting
   const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
   const rateCheck = checkRateLimit(ip);
   if (!rateCheck.allowed) {
@@ -22,13 +20,16 @@ export default async function handler(req, res) {
   }
 
   try {
+    await initDatabase();
+
     if (req.method === 'GET') {
-      const sites = Site.findAll().map(site => ({
+      const sites = await Site.findAll();
+      const sitesWithStats = await Promise.all(sites.map(async (site) => ({
         ...site,
-        latestCheck: Check.findLatest(site.id),
-        uptime24h: Check.getUptime(site.id, 24)
-      }));
-      return res.status(200).json(sites);
+        latestCheck: await Check.findLatest(site.id),
+        uptime24h: await Check.getUptime(site.id, 24)
+      })));
+      return res.status(200).json(sitesWithStats);
     }
 
     if (req.method === 'POST') {
@@ -37,18 +38,17 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: validation.error });
       }
 
-      // SSRF check
       const urlCheck = isUrlSafe(req.body.url);
       if (!urlCheck.safe) {
         return res.status(400).json({ error: urlCheck.reason });
       }
 
-      // Check for duplicates
-      if (Site.findByUrl(req.body.url)) {
+      const existing = await Site.findByUrl(req.body.url);
+      if (existing) {
         return res.status(409).json({ error: 'Site already exists' });
       }
 
-      const site = Site.create(req.body);
+      const site = await Site.create(req.body);
       return res.status(201).json(site);
     }
 

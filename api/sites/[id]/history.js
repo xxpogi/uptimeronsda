@@ -1,4 +1,5 @@
 // Vercel Serverless API - Site history
+import { initDatabase } from '../../../lib/db.js';
 import { Site, Check } from '../../../lib/models.js';
 import { isValidUUID, checkRateLimit } from '../../../lib/security.js';
 
@@ -29,20 +30,26 @@ export default async function handler(req, res) {
   }
 
   try {
-    const site = Site.findById(id);
+    await initDatabase();
+
+    const site = await Site.findById(id);
     if (!site) {
       return res.status(404).json({ error: 'Site not found' });
     }
 
-    const checks = Check.findBySite(id, { limit });
-    const hourlyStats = Check.getHourlyStats(id, 24);
+    const [checks, hourlyStats, uptime24h, uptime7d] = await Promise.all([
+      Check.findBySite(id, { limit }),
+      Check.getHourlyStats(id, 24),
+      Check.getUptime(id, 24),
+      Check.getUptime(id, 168)
+    ]);
 
     return res.status(200).json({
       site,
       checks,
       hourlyStats,
-      uptime24h: Check.getUptime(id, 24),
-      uptime7d: Check.getUptime(id, 168)
+      uptime24h,
+      uptime7d
     });
   } catch (error) {
     console.error('History Error:', error);

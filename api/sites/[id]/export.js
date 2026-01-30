@@ -1,4 +1,5 @@
 // Vercel Serverless API - Export site data as CSV
+import { initDatabase } from '../../../lib/db.js';
 import { Site, Check } from '../../../lib/models.js';
 import { isValidUUID, checkRateLimit } from '../../../lib/security.js';
 
@@ -28,12 +29,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const site = Site.findById(id);
+    await initDatabase();
+
+    const site = await Site.findById(id);
     if (!site) {
       return res.status(404).json({ error: 'Site not found' });
     }
 
-    const csv = Check.exportCSV(id);
+    const csv = await Check.exportCSV(id);
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="${site.label}-history.csv"`);

@@ -1,4 +1,5 @@
 // Vercel Serverless API - Manual site check
+import { initDatabase } from '../../../lib/db.js';
 import { Site, Check } from '../../../lib/models.js';
 import { isValidUUID, isUrlSafe, checkRateLimit } from '../../../lib/security.js';
 
@@ -28,12 +29,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const site = Site.findById(id);
+    await initDatabase();
+
+    const site = await Site.findById(id);
     if (!site) {
       return res.status(404).json({ error: 'Site not found' });
     }
 
-    // SSRF protection
     const urlCheck = isUrlSafe(site.url);
     if (!urlCheck.safe) {
       return res.status(400).json({ error: urlCheck.reason });
@@ -63,7 +65,7 @@ export default async function handler(req, res) {
     }
 
     const responseTime = Date.now() - startTime;
-    const check = Check.create({
+    const check = await Check.create({
       siteId: id,
       status,
       statusCode,

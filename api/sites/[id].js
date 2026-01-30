@@ -1,5 +1,6 @@
 // Vercel Serverless API - Single site operations
-import { Site, Check, Alert } from '../../lib/models.js';
+import { initDatabase } from '../../lib/db.js';
+import { Site, Check } from '../../lib/models.js';
 import { isValidUUID, checkRateLimit } from '../../lib/security.js';
 import { validateSiteUpdate } from '../../lib/validation.js';
 
@@ -20,13 +21,14 @@ export default async function handler(req, res) {
 
   const { id } = req.query;
 
-  // Validate UUID
   if (!isValidUUID(id)) {
     return res.status(400).json({ error: 'Invalid site ID format' });
   }
 
   try {
-    const site = Site.findById(id);
+    await initDatabase();
+
+    const site = await Site.findById(id);
     if (!site) {
       return res.status(404).json({ error: 'Site not found' });
     }
@@ -34,9 +36,9 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       return res.status(200).json({
         ...site,
-        latestCheck: Check.findLatest(id),
-        uptime24h: Check.getUptime(id, 24),
-        stats: Check.getStats(id, 24)
+        latestCheck: await Check.findLatest(id),
+        uptime24h: await Check.getUptime(id, 24),
+        stats: await Check.getStats(id, 24)
       });
     }
 
@@ -46,12 +48,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: validation.error });
       }
 
-      const updated = Site.update(id, req.body);
+      const updated = await Site.update(id, req.body);
       return res.status(200).json(updated);
     }
 
     if (req.method === 'DELETE') {
-      Site.delete(id);
+      await Site.delete(id);
       return res.status(204).end();
     }
 
