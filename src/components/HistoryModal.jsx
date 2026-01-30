@@ -11,10 +11,16 @@ export function HistoryModal({ isOpen, onClose, site }) {
   useEffect(() => {
     if (isOpen && site) {
       setLoading(true);
-      Promise.all([api.getHistory(site.id), api.getChartData(site.id, 24)])
-        .then(([hist, chart]) => {
+      api.getHistory(site.id)
+        .then((hist) => {
           setHistory(hist);
-          setChartData(chart.chartData || []);
+          // Transform hourlyStats for chart display
+          const chartFormatted = (hist.hourlyStats || []).map(h => ({
+            time: h.hour,
+            avgResponseTime: h.avg_response_time || 0,
+            uptime: h.total > 0 ? Math.round((h.up_count / h.total) * 100) : 100
+          }));
+          setChartData(chartFormatted);
         })
         .catch(() => {})
         .finally(() => setLoading(false));
